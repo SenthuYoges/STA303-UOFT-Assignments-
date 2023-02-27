@@ -1,0 +1,276 @@
+---
+title: "Assignment 2 by Senthooran Yogeswaran"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(ggplot2)
+library(lme4)
+library(MASS)
+library(tinytex)
+library(rms)
+library(tidyverse)
+library(aod)
+```
+
+a) 
+Exploring data.
+```{r}
+cd4 <- read.table("CD4.txt", header = TRUE)
+head(cd4)
+```
+
+After viewing we convert treatmnt from integer to a factor 
+```{r}
+cd4$treatmnt <- as.factor(cd4$treatmnt)
+unique(cd4$treatmnt)
+```
+
+Distribution of CD4 cells to figure out how to transform data.
+```{r}
+cd4 %>%
+  ggplot(aes(x= CD4PCT, fill = treatmnt))+ 
+  geom_density(alpha=0.5)+
+  labs(title = "Distribution of CD4 cells in young children in control or zinc treatment")
+```
+We notice the y-axis is interfering with the distribution data.
+A log or square root transformation will help pull the data away.
+
+
+The log transformation adds skewness which may be problematic. Fortunately,
+the square root transformation makes our data look more symmetrical and normal-
+like. Therefore, we will select this transformation.
+
+```{r}
+cd4 %>%
+  ggplot(aes(x= log(CD4PCT), fill = treatmnt))+ 
+  geom_density(alpha=0.5)+
+  labs(title = "Distribution of CD4 cells in young children in control or zinc treatment")
+
+```
+
+```{r}
+cd4 %>%
+  ggplot(aes(x= sqrt(CD4PCT), fill = treatmnt))+ 
+  geom_density(alpha=0.5)+
+  labs(title = "Distribution of CD4 cells in young children in control or zinc treatment")
+```
+
+
+B)
+Selecting 10 children and showing the transformed CD4 percents at each time
+point. From the data rows 1 to 49 have 10 subjects with repeated measurements 
+over time. 
+
+
+```{r}
+cd4_subset <- cd4[1:49, ]
+cd4_subset %>% 
+  ggplot(aes(x= time, y = sqrt(CD4PCT)))+
+  geom_point()+
+  theme_bw()+
+  labs(x="Time", y = "Sqrt(CD4PCT)")
+```
+
+c) 
+
+We write a model with CD4 percents as a function of time with intercepts
+varying by child.
+```{r}
+lmer1 <- lmer(data=cd4, formula =  sqrt(CD4PCT) ~ 
+                time + (1|newpid) ) 
+```
+
+$\alpha_j~N(4.76,1.40^2)$
+
+$\text{We see our estimated model parameters for }\mu_a$
+
+$\text{ to be about 4.76 and the }\beta$
+
+$\text{ to be about -0.37}$
+
+So as time increases that the percentage of CD4 decreases
+by 0.37% for each child.
+
+```{r, echo=FALSE}
+summary(lmer1)$coefficients 
+```
+
+
+```{r}
+summary(lmer1)
+```
+
+d) 
+
+We notice as time increases that the percentage of CD4 decreases
+changes from 0.366% to 0.362% which means the treatment or the base age
+had a very small correlation with the time students were measured 
+The mu hat alpha intercept has grown from 4.76 to 5.08.
+Compared to the radon example we were only concerned about the basement effect 
+and had a fixed slope model with partial, and complete pooling.
+Here, we have more fixed effects. There are three to be exact.
+ 
+```{r}
+lmer2 <- lmer(data=cd4, formula =  sqrt(CD4PCT) ~ 
+                time + treatmnt + baseage + (1|newpid) ) 
+summary(lmer2)
+```
+
+e)
+
+Keeping our transformation in mind, treatment seems to be effective. 
+In our previous model it showed that children that were treated have about 
+0.18% more CD4 than those who didn't. Children who were older at the base age 
+have 0.11% less CD4 than children who were younger at the base age. 
+
+
+f) 
+
+We want to simulate data from a child with newpid #9 so we take the 
+coefficient [9,1]. We fix beta at 1.4 since our time is asked at 1.4 years.
+Our prediction interval from simulating from this data is:
+(6.18, 9.21)
+This means from simulating from our data their CD4 percentage at 1.4
+years should be between 6.18 and 9.21.
+```{r}
+lmer2 <- lmer(data=cd4, formula =  sqrt(CD4PCT) ~ 
+                time + treatmnt + baseage + (1|newpid) ) 
+alpha1 <- coef(lmer2)$newpid[9,1]
+#fixing time at 1.4 years
+beta <- 1.4
+sigma <- summary(lmer2)$sigma
+
+cd4_sims <- rnorm(10000, mean = alpha1 + beta, sigma)
+
+cd4_prediction_interval <- quantile(cd4_sims, probs = c(0.025,0.5,0.975))
+cd4_prediction_interval
+```
+
+g)
+
+The new prediction interval for predicting CD4 percentage after 1 year is:
+(2.12, 10.05). This is larger as we don't really have any new information 
+pertaining the children. Fortunately, this interval is only slightly wider.
+If you had used the model from C I would anticipate the interval to be even 
+wider as we removed information pertaining the children.
+
+```{r}
+#beta here is fixed at 1 year
+new_beta = 1
+mu_alpha1 <- summary(lmer2)$coefficients[1,1]
+sigma_alpha1 <- summary(lmer2)$varcor[1]$newpid[1]
+alpha_new1 <- rnorm(10000, mu_alpha1, sigma_alpha1 )
+
+new_cd4_sims <- rnorm(10000, alpha_new1 + new_beta, sigma)
+cd4_prediction_interval_new <- quantile(new_cd4_sims, probs = c(0.025,0.5,0.975))
+cd4_prediction_interval_new
+```
+
+
+
+~ Question 2 ~
+
+~ Introduction ~
+
+It's always been important to excel at your studies and education as it leads 
+to a brighter future. Typically, being labelled as smart brings pride to your 
+family as well as social recognition. There's always been a stereotype that 
+females are more studious than males, while males might be recognized for their 
+athletic feats in sports.
+My research question will look at a scholarship data set and verify if females 
+are more likely to win academic award than males. Additionally, I will be 
+looking if socioeconomic status 
+
+
+~ Data Analysis ~
+
+```{r}
+scholarships <- read.table("scholarships.txt", header = TRUE)
+head(scholarships)
+```
+
+Let's clean up some of the data. Specifically, changing the female, SES,
+schtype and progtype in factors since they are marked as the wrong variables.
+
+```{r}
+scholarships$female <- as.factor(scholarships$female)
+scholarships$ses <- as.factor(scholarships$ses)
+scholarships$schtyp <- as.factor(scholarships$schtyp)
+scholarships$prog <- as.factor(scholarships$prog)
+```
+
+We want to explore the data to understand what type of model to fit, 
+therefore plotting the data should help us. 
+We understand the variables female, awards, and and ses are the utmost 
+importance and will most likely be used in future models.
+
+
+```{r}
+scholarships %>%  
+  ggplot(aes(x=cid, y=awards))+
+  geom_point()+
+  theme_bw()+
+  labs(x="Schools", y = "Awards")
+```
+
+We created a plot to understand the relationship of schools and the amount of 
+awards. We notice some schools have a low amount of awards. Due to this, 
+its important to use random effects, particularly fixing the effect over a 
+normal distribution. 
+
+
+Also, remember our outcome variable awards is an unrestricted count.
+we could use a normal model but a LMM seems more reasonable.
+```{r}
+scholarships %>% ggplot(aes(x=awards))+geom_histogram()
+```
+
+
+
+We notice the school id's vary from 1 to 20 but many of them have 
+repeated measurements. This is exactly why the current model works 
+alongside the low amount of awards for some of them described. 
+This implies, that our intercepts vary by school id and this is our 
+random intercept. 
+```{r}
+scholar_lmer <- lmer(data=scholarships, formula = awards ~ 1 + (1|cid) + female + ses + prog)
+summary(scholar_lmer)
+```
+
+
+Our model used awards as the outcome with school id as our random intercept,
+and whether they were a female or not, their socioeconomic status 
+and progtype as indicators. 
+
+$yi~N(1.20,1.14^2)$
+
+$\mu_i = \alpha_j[i]+\beta_k[i]+\beta_s[i]+\beta_n[i]$
+where alpha is the school effect and beta_k is the effect of being a female or not. 
+Beta_s is socioeconomic status and beta_n is the progtype
+
+$\text{Our } \alpha_j$ 
+$\text{ has a distribution of }\alpha_j~N(1.20,1.14^2)$
+
+
+~ Discussion ~
+
+Based off our summary output we can make an inference on the data analyzed.
+Firstly, we notice females have a 60% chance of winning an award compared 
+to males. Those with a higher socioeconomic status have about 26% of winning 
+an award compared to a lower status. Those who had a progtype of academic had 
+a 12% chance.
+
+~ Results and Conclusion ~
+
+The data analysis conducted shows that females are more likely to win an 
+academic award compared to males. Socioeconomic status is associated with 
+winning an award which may make sense since coming from a family with a 
+higher income and stability could make studying easier and ensuring you 
+have the optimal nutrition to enhance your brain's function. 
+
